@@ -1,0 +1,55 @@
+import tweepy #This package allows us to access the Twitter API.
+from tweepy import OAuthHandler #This allows us to pass on our keys and tokens through Tweepy to get access to the Twitter API.
+import pandas as pd #This package allows us to build a dataframe, which is easily convertible into an Excel file.
+from html.parser import HTMLParser #This package allows us to deal with HTML within the tweets.
+from html import unescape #Unescape allows us to convert HTML langauge into Unicode characters.
+import re #This allows us to use regular expressions to look for patterns or characters within tweets that we might want to isolate or get rid of.
+import csv #This allows Pandas to write out its DataFrame onto our text file in a Comma Separated Values (CSV) format.
+import os #This connects our program to our local operating system. This way, we can open and write new files.
+
+
+#Add the keys and tokens provided via Twitter Developer
+consumer_key = ''
+consumer_secret = ''
+access_token = ''
+access_token_secret = ''
+
+# OAuthHandler object 
+auth = OAuthHandler(consumer_key, consumer_secret) 
+# set access token and secret 
+auth.set_access_token(access_token, access_token_secret) 
+
+api = tweepy.API(auth, wait_on_rate_limit=True)
+
+query = 'to be or not to be -filter:retweets' #This is where we put in our search terms. We are filtering out retweets.
+date_since = "2019-7-15" #This is the date from when we want to start grabbing tweets.
+date_until = "2019-7-22"
+tweets = tweepy.Cursor(api.search,q=query,lang="en",since=date_since, until=date_until, tweet_mode='extended').items(10000)#this is the search for the tweets within the search API.
+
+
+#this is to build the DataFrame
+all_tweets = []
+for tweet in tweets:
+  tweet_text = tweet.full_text #Tweets can now be 280 characters. We want to grab the full tweet text from the tweet, not just the first 140 characters.
+  tweet_text = tweet_text.lower()#This makes all the text lowercase, removing case from the consideration of the query.
+  tweet_text = re.sub('@[^\s]+'," ",tweet_text)#We don't want to see all the mentions and replies.
+  no_emojis = re.compile('[\U00010000-\U0010ffff]', flags=re.UNICODE)#This is setting up a regular expression pattern that we want this program to search for within the tweet text. 
+  tweet_text = no_emojis.sub(r'', tweet_text)#This uses the above procedure to get rid of all emojis, which can make the data hard to read.
+  hashtags = str(tweet_text)#This turns the tweet text into a string just for the variable we are calling "hashtags." This allows Python to read it and manipulate it based on keyboard characters, rather than bytes.
+  hashtags = re.findall(r'(?i)\#\w+', hashtags, flags=re.UNICODE)#This finds all the words that begin with a #. 
+  tweet_text = re.sub('http[^\s]+','',tweet_text)#This gets rid of all words that begin with a hypertext transfer protocol (http, https).
+  tweet_text = re.sub('#\S+', '', tweet_text) #This gets rid of the hashtags from within the tweet text. We will put the hashtags in a different column in our data. 
+  no_punc = re.compile('([^\s\w]|_)+') #This is setting up a regular expression pattern that we want this program to search for within the tweet text. It deletes non alphanumeric characters.
+  tweet_text = no_punc.sub('', tweet_text)#This has the program look for the ^^regular expression listed above and replace instances of it with a space.
+  tweet_text = unescape(tweet_text) #Turns hypertext language into corresponding unicode characters.
+  tweet_text = tweet_text.encode('utf-8').decode().replace('\n', '')#Replaces line breaks (which mess up the data input in Excel) into spaces. Each tweet reads as one line.
+  
+  #For each tweet in the tweets from the API, the information will be added to columns in the DataFrame based on these objects.   
+  all_tweets.append([tweet.user.screen_name, tweet.created_at,tweet.user.location, tweet_text, tweet.favorite_count,tweet.retweet_count, hashtags, query])
+
+#This is the DataFrame with the columns titled the way they are listed in the brackets.
+df = pd.DataFrame(data=all_tweets,columns=["user","time", "location","tweet","likes","retweets","hashtags", "query"])
+
+        
+#exporting the DataFrame to a text file. It will ovewrite the text file every time you run the query. Create different files for different search terms by changing the name of the document (such as tweets2.txt to tweets3.text) 
+export_csv = df.to_csv (r'C:\Users\naeas\.idlerc\tweets3.txt', index = None, header=True)
